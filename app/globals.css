@@ -1,8 +1,10 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  /* --foreground: #171717; */
 }
 
 @theme inline {
@@ -14,7 +16,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    /*     --background: #0a0a0a; */
     --foreground: #ededed;
   }
 }
@@ -23,4 +25,24 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.container {
+  min-height: 100vh;
+}
+
+.header {
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: space-around;
+  align-items: center !important;
+}
+
+.menu {
+  min-height: 92vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
