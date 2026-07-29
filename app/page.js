@@ -2,7 +2,6 @@
 
 import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Login from "./components/Login";
 
 import {
@@ -18,7 +17,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, UserRoundCog } from "lucide-react";
 
 import { Box } from "@/components/ui/box";
 import { Heading } from "@/components/ui/heading";
@@ -36,8 +35,6 @@ import {
   getDocs,
 } from "firebase/firestore";
 
-import { UserRoundCog } from "lucide-react";
-
 export default function Home() {
   const router = useRouter();
   const fileInputRef = useRef(null);
@@ -52,8 +49,6 @@ export default function Home() {
   const [sqlPass, sqlSetPass] = useState("");
   const [tel, setTel] = useState("");
   const [president, setPresident] = useState("");
-
-
   const [loading, setLoading] = useState(false);
 
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -70,13 +65,13 @@ export default function Home() {
     try {
       const res = await fetch(
         "https://b.jw-cdn.org/apis/pub-media/GETPUBMEDIALINKS?output=json&pub=sjjm&fileformat=MP3&alllangs=0&langwritten=S&txtCMSLang=S",
-      )
-        .then((response) => response.json())
-        .then((data) => data);
+      );
+
+      const data = await res.json();
 
       const song = [];
 
-      res.files.S.MP3.map((item) => {
+      data.files.S.MP3.map((item) => {
         if (!item.title.includes("(con audiodescripciones)")) {
           song.push(item.title);
         }
@@ -84,7 +79,7 @@ export default function Home() {
 
       setSongs(song);
     } catch (error) {
-      console.log("Error al obtener la lista de canciones", error);
+      console.log("Error al obtener canciones", error);
     }
   };
 
@@ -95,7 +90,6 @@ export default function Home() {
         return;
       }
 
-      // inicia spinner
       setLoading(true);
 
       const docRef = await addDoc(collection(db, "recursos"), {
@@ -108,28 +102,35 @@ export default function Home() {
 
       const idRecurso = docRef.id;
 
-      const formData = new FormData();
+      let archivos = [];
 
-      files.forEach((file) => {
-        formData.append("images", file);
-      });
+      if (files.length > 0) {
+        const formData = new FormData();
 
-      formData.append("folderId", idRecurso);
+        files.forEach((file) => {
+          formData.append("images", file);
+        });
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+        formData.append("folderId", idRecurso);
 
-      const data = await response.json();
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        console.log("Respuesta upload:", data);
+
+        archivos = data.archivos || [];
+      }
 
       await updateDoc(doc(db, "recursos", idRecurso), {
-        archivos: data.archivos,
+        archivos,
       });
 
       sendWhatsapPresident();
 
-      // LIMPIAR FORMULARIO
       setName("");
       setTalks("");
       setNum("");
@@ -138,9 +139,9 @@ export default function Home() {
       setSucces(true);
     } catch (error) {
       console.log(error, "No se pudo insertar");
+
       setError(true);
     } finally {
-      // quitar spinner siempre
       setLoading(false);
     }
   }
@@ -159,7 +160,7 @@ export default function Home() {
   useEffect(() => {
     const login = async () => {
       const querySnapshot = await getDocs(collection(db, "password"));
-      const president = await getDocs(collection(db, "presidente"));
+      const presidentSnapshot = await getDocs(collection(db, "presidente"));
 
       let passData = "";
 
@@ -167,13 +168,13 @@ export default function Home() {
         passData = doc.data();
       });
 
-      if (passData && passData.pass) {
+      if (passData?.pass) {
         sqlSetPass(passData.pass);
       }
 
       let currentPresident = "";
 
-      president.forEach((doc) => {
+      presidentSnapshot.forEach((doc) => {
         currentPresident = doc.data();
       });
 
@@ -203,19 +204,21 @@ export default function Home() {
 
     window.open(url, "_blank");
   }
+
   return (
     <div className="container">
-      <Box className="w-full bg-primary/30 flex flex-row items-center justify-between p-5 pointer">
+      <Box className="w-full bg-primary/30 flex flex-row items-center justify-between p-5">
         <p className="font-bold text-lg">AVHub</p>
 
         <Box className="flex flex-row gap-5 items-center">
-          <p className="pointer">Recursos</p>
+          <p>Recursos</p>
 
           <Button
-            className="flex gap-2 bg-sky-500/100 items-center justify-center"
+            className="flex gap-2 bg-sky-500 items-center justify-center"
             onPress={() => setIsLoginOpen(true)}
           >
             <UserRoundCog size={16} className="text-white" />
+
             <p className="text-white">Admin</p>
           </Button>
 
@@ -236,21 +239,18 @@ export default function Home() {
 
         <Box className="gap-6 mt-10">
           {success && <AlertSuccess />}
+
           {error && <AlertError />}
 
-          <Input isRequired="true">
+          <Input>
             <InputField
               placeholder="Nombre del discursante"
               value={name}
-              onChangeText={(e) => setName(e)}
+              onChangeText={setName}
             />
           </Input>
 
-          <Select
-            onValueChange={(value) => {
-              setTalks(value);
-            }}
-          >
+          <Select onValueChange={setTalks}>
             <SelectTrigger variant="outline" size="md">
               <SelectInput placeholder="Seleccionar bosquejo" />
 
@@ -265,21 +265,18 @@ export default function Home() {
                   <SelectDragIndicator />
                 </SelectDragIndicatorWrapper>
 
-                <SelectItem label="Discurso 1" value="Discurso 1" />
-                <SelectItem label="Discurso 2" value="Discurso 2" />
-                <SelectItem label="Discurso 3" value="Discurso 3" />
-                <SelectItem label="Discurso 4" value="Discurso 4" />
-                <SelectItem label="Discurso 5" value="Discurso 5" />
-                <SelectItem label="Discurso 6" value="Discurso 6" />
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <SelectItem
+                    key={i}
+                    label={`Discurso ${i}`}
+                    value={`Discurso ${i}`}
+                  />
+                ))}
               </SelectContent>
             </SelectPortal>
           </Select>
 
-          <Select
-            onValueChange={(value) => {
-              setNum(value);
-            }}
-          >
+          <Select onValueChange={setNum}>
             <SelectTrigger variant="outline" size="md">
               <SelectInput placeholder="Seleccionar Alabanza" />
 
@@ -295,13 +292,13 @@ export default function Home() {
                 </SelectDragIndicatorWrapper>
 
                 {songs.map((i, index) => (
-                  <SelectItem label={i} value={i} key={index} />
+                  <SelectItem key={index} label={i} value={i} />
                 ))}
               </SelectContent>
             </SelectPortal>
           </Select>
 
-          <Button onPress={openGallery} className="pointer" disabled={loading}>
+          <Button onPress={openGallery} disabled={loading}>
             <ButtonText>Subir imágenes</ButtonText>
           </Button>
 
@@ -311,13 +308,11 @@ export default function Home() {
             accept="image/*"
             multiple
             hidden
-            onChange={() => {
-              handleFiles(Array.from(fileInputRef.current.files));
-            }}
+            onChange={() => handleFiles(Array.from(fileInputRef.current.files))}
           />
 
           {files.length > 0 && (
-            <Box className="mt-5">
+            <Box>
               <Heading size="md">Archivos seleccionados</Heading>
 
               {files.map((file, index) => (
@@ -327,11 +322,9 @@ export default function Home() {
           )}
 
           <Button
-            className="bg-sky-500/100"
-            variant="default pointer"
-            size="default"
+            className="bg-sky-500"
             disabled={loading}
-            onPress={() => sendDataResources(files)}
+            onPress={sendDataResources}
           >
             <ButtonText className="text-white">
               {loading ? "⏳ Enviando recursos..." : "Enviar a AVHub"}
