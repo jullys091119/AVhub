@@ -6,15 +6,14 @@ import { Grid } from "@/components/ui/grid";
 import { Text } from "@/components/ui/text";
 import { Heading } from "@/components/ui/heading";
 import { Button } from "@/components/ui/button";
-
-import { User, CalendarDays, Download } from "lucide-react";
+import { User, CalendarDays,ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 function Speakers({ news }) {
- console.log(news[0], "newa")
   return (
     <Box className="rounded-lg overflow-hidden p-4">
-      <Heading>Recursos de Discursantes</Heading>
-
+      <Link href='/'><ArrowLeft/></Link>  
+      <Heading className="mt-10">Recursos de Discursantes</Heading>
       <Grid
         className="gap-4"
         _extra={{
