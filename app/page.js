@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { useRouter } from "next/navigation"; 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Login from "./components/Login";
 
@@ -27,7 +27,7 @@ import { Button, ButtonText } from "@/components/ui/button";
 import AlertSuccess from "./components/AlertSuccess";
 import AlertError from "./components/AlertError";
 
-import { db, storage } from "@/firebase";
+import { db } from "@/firebase";
 import {
   collection,
   addDoc,
@@ -35,12 +35,11 @@ import {
   doc,
   getDocs,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 import { UserRoundCog } from "lucide-react";
 
 export default function Home() {
-  const router = useRouter(); 
+  const router = useRouter();
   const fileInputRef = useRef(null);
 
   const [name, setName] = useState("");
@@ -51,11 +50,20 @@ export default function Home() {
   const [songs, setSongs] = useState([]);
   const [num, setNum] = useState("");
   const [sqlPass, sqlSetPass] = useState("");
-  
+  const [tel, setTel] = useState("");
+  const [president, setPresident] = useState("");
+
+
+  const [loading, setLoading] = useState(false);
+
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
   const openGallery = () => {
     fileInputRef.current.click();
+  };
+
+  const handleFiles = (newFiles) => {
+    setFiles((prev) => [...prev, ...newFiles]);
   };
 
   const getSongs = async () => {
@@ -65,20 +73,19 @@ export default function Home() {
       )
         .then((response) => response.json())
         .then((data) => data);
+
       const song = [];
+
       res.files.S.MP3.map((item) => {
         if (!item.title.includes("(con audiodescripciones)")) {
           song.push(item.title);
         }
       });
+
       setSongs(song);
     } catch (error) {
       console.log("Error al obtener la lista de canciones", error);
     }
-  };
-
-  const handleFiles = (newFiles) => {
-    setFiles((prev) => [...prev, ...newFiles]);
   };
 
   async function sendDataResources() {
@@ -87,6 +94,9 @@ export default function Home() {
         setError(true);
         return;
       }
+
+      // inicia spinner
+      setLoading(true);
 
       const docRef = await addDoc(collection(db, "recursos"), {
         nombre: name,
@@ -97,6 +107,7 @@ export default function Home() {
       });
 
       const idRecurso = docRef.id;
+
       const formData = new FormData();
 
       files.forEach((file) => {
@@ -111,18 +122,32 @@ export default function Home() {
       });
 
       const data = await response.json();
-      console.log("Respuesta Cloudinary:", data);
 
       await updateDoc(doc(db, "recursos", idRecurso), {
         archivos: data.archivos,
       });
+
+      sendWhatsapPresident();
+
+      // LIMPIAR FORMULARIO
+      setName("");
+      setTalks("");
+      setNum("");
+      setFiles([]);
+
+      setSucces(true);
     } catch (error) {
       console.log(error, "No se pudo insertar");
+      setError(true);
+    } finally {
+      // quitar spinner siempre
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     getSongs();
+
     if (success || error) {
       setTimeout(() => {
         setSucces(false);
@@ -134,18 +159,50 @@ export default function Home() {
   useEffect(() => {
     const login = async () => {
       const querySnapshot = await getDocs(collection(db, "password"));
+      const president = await getDocs(collection(db, "presidente"));
+
       let passData = "";
+
       querySnapshot.forEach((doc) => {
         passData = doc.data();
       });
+
       if (passData && passData.pass) {
         sqlSetPass(passData.pass);
       }
+
+      let currentPresident = "";
+
+      president.forEach((doc) => {
+        currentPresident = doc.data();
+      });
+
+      setTel(currentPresident.tel);
+      setPresident(currentPresident.nombre);
     };
-   
+
     login();
   }, []);
 
+  function sendWhatsapPresident() {
+    const msg = `
+👋 Hola ${president}
+
+📢 Ya están disponibles los recursos del discurso.
+
+👤 Discursante: ${name}
+
+📄 Bosquejo: ${talks}
+
+🎵 Alabanza: ${num}
+
+🔗 Recursos disponibles en AVHub
+`;
+
+    const url = `https://wa.me/${tel}?text=${encodeURIComponent(msg)}`;
+
+    window.open(url, "_blank");
+  }
   return (
     <div className="container">
       <Box className="w-full bg-primary/30 flex flex-row items-center justify-between p-5 pointer">
@@ -154,19 +211,17 @@ export default function Home() {
         <Box className="flex flex-row gap-5 items-center">
           <p className="pointer">Recursos</p>
 
-          {/* Botón corregido sin ButtonIcon para evitar el error de consola */}
-          <Button 
-            className="flex gap-2 bg-sky-500/100 items-center justify-center" 
+          <Button
+            className="flex gap-2 bg-sky-500/100 items-center justify-center"
             onPress={() => setIsLoginOpen(true)}
           >
             <UserRoundCog size={16} className="text-white" />
             <p className="text-white">Admin</p>
           </Button>
 
-          {/* Le pasamos sqlPass y la función para redirigir directamente al tener éxito */}
-          <Login 
+          <Login
             sqlPass={sqlPass}
-            isOpen={isLoginOpen} 
+            isOpen={isLoginOpen}
             onClose={() => setIsLoginOpen(false)}
             onSuccess={() => {
               setIsLoginOpen(false);
@@ -182,6 +237,7 @@ export default function Home() {
         <Box className="gap-6 mt-10">
           {success && <AlertSuccess />}
           {error && <AlertError />}
+
           <Input isRequired="true">
             <InputField
               placeholder="Nombre del discursante"
@@ -197,15 +253,18 @@ export default function Home() {
           >
             <SelectTrigger variant="outline" size="md">
               <SelectInput placeholder="Seleccionar bosquejo" />
+
               <SelectIcon className="mr-3" as={ChevronDownIcon} />
             </SelectTrigger>
 
             <SelectPortal>
               <SelectBackdrop />
+
               <SelectContent>
                 <SelectDragIndicatorWrapper>
                   <SelectDragIndicator />
                 </SelectDragIndicatorWrapper>
+
                 <SelectItem label="Discurso 1" value="Discurso 1" />
                 <SelectItem label="Discurso 2" value="Discurso 2" />
                 <SelectItem label="Discurso 3" value="Discurso 3" />
@@ -215,7 +274,7 @@ export default function Home() {
               </SelectContent>
             </SelectPortal>
           </Select>
-          
+
           <Select
             onValueChange={(value) => {
               setNum(value);
@@ -223,14 +282,18 @@ export default function Home() {
           >
             <SelectTrigger variant="outline" size="md">
               <SelectInput placeholder="Seleccionar Alabanza" />
+
               <SelectIcon className="mr-3" as={ChevronDownIcon} />
             </SelectTrigger>
+
             <SelectPortal>
               <SelectBackdrop />
+
               <SelectContent>
                 <SelectDragIndicatorWrapper>
                   <SelectDragIndicator />
                 </SelectDragIndicatorWrapper>
+
                 {songs.map((i, index) => (
                   <SelectItem label={i} value={i} key={index} />
                 ))}
@@ -238,7 +301,7 @@ export default function Home() {
             </SelectPortal>
           </Select>
 
-          <Button onPress={openGallery} className="pointer">
+          <Button onPress={openGallery} className="pointer" disabled={loading}>
             <ButtonText>Subir imágenes</ButtonText>
           </Button>
 
@@ -256,19 +319,23 @@ export default function Home() {
           {files.length > 0 && (
             <Box className="mt-5">
               <Heading size="md">Archivos seleccionados</Heading>
+
               {files.map((file, index) => (
                 <p key={index}>📷 {file.name}</p>
               ))}
             </Box>
           )}
-          
+
           <Button
             className="bg-sky-500/100"
             variant="default pointer"
             size="default"
+            disabled={loading}
             onPress={() => sendDataResources(files)}
           >
-            <ButtonText className="text-white">Enviar a AVHub</ButtonText>
+            <ButtonText className="text-white">
+              {loading ? "⏳ Enviando recursos..." : "Enviar a AVHub"}
+            </ButtonText>
           </Button>
         </Box>
       </main>
